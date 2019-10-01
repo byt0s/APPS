@@ -1,0 +1,115 @@
+#include "mbed.h"
+
+// Serial line for printf output
+Serial g_pc(USBTX, USBRX);
+
+// LEDs on K64F-KIT - instances of class DigitalOut
+DigitalOut g_led1(PTA1);
+DigitalOut g_led2(PTA2);
+
+// Button on K64F-KIT - instance of class DigitalIn
+DigitalIn g_but9(PTC9);
+DigitalIn g_but12(PTC12);
+
+Ticker casovac;
+
+#define T 25
+
+class LED: public DigitalOut
+{
+public:
+	LED(PinName pin) :
+			DigitalOut(pin)
+	{
+		T0 = 0;
+	}
+	void nastavJas(int procent)
+	{
+		T0 = T - ( procent * T ) / 100; // T0 je cast T v zavislosti na zadanych %
+	}
+	void blik(int t)
+	{
+		if ( t < T0 ) write( 0 );
+		else write( 1 );
+		/// if ( t == 0 ) write( !read() ); // Opravit, aby "prebliknuti" bylo v zavislosti na T0
+	}
+	int T0;
+};
+
+class PWM
+{
+public:
+	PWM(LED *lds, int nleds)
+	{
+		leds = lds;
+		numled = nleds;
+		t = 0;
+	}
+	void blik()
+	{
+		for (int i = 0; i < numled; i++)
+			leds[i].blik(t);
+		if ( ++t >= T )
+			t = 0; /// opravit!!
+	}
+	LED *leds;
+	int numled;
+	int t;
+};
+
+LED g_redleds[ 8 ] = { PTC0, PTC1, PTC2, PTC3, PTC4, PTC5, PTC7, PTC8 };
+
+int main()
+{
+	// Serial line initialization
+	g_pc.baud(115200);
+	g_pc.printf("Demo program started...\r\n");
+
+	// ************************int i = 0;
+
+
+	PWM pwm(g_redleds, 8);
+	while(1)
+	{
+		if(g_but9 == 0)
+		{
+
+			for( int i = 0; i < 8; i++ )
+			{
+				g_redleds[ i ].nastavJas(0);
+			}
+			for ( int i = 0; i < 8; i++ )
+			{
+				g_redleds[ i ].nastavJas(i*10+10);
+				wait_ms(250);
+			}
+			//g_redleds[7].nastavJas(0);///otocit posledni diodu
+			casovac.attach_us(callback(&pwm, &PWM::blik), 1000);
+			wait_ms(500);
+			if(g_but12 == 0 && g_redleds[7] == 1  )
+			{
+				g_led1 = !g_led1;
+			}
+			for(int i = 0; i < 8 ; i++)
+			{
+				g_redleds[i].nastavJas(0);
+			}
+		}
+		g_led1 = 0;
+	}
+
+
+
+	// default demo for 2 LEDs and 4 buttons
+	while (1);
+	{
+		g_led1 = !g_led1;		// invert current state
+		g_led2 = !g_led1;		// inverse blinking
+
+		wait_ms(250);			// delay
+
+		//while (!g_but9 || !g_but10 || !g_but11 || !g_but12)
+			; // stop blinking
+	}
+
+}
