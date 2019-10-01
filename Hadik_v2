@@ -1,3 +1,16 @@
+// **************************************************************************
+//
+//               Demo program for labs
+//
+// Subject:      Computer Architectures and Parallel systems
+// Author:       Petr Olivka, petr.olivka@vsb.cz, 09/2019
+// Organization: Department of Computer Science, FEECS,
+//               VSB-Technical University of Ostrava, CZ
+//
+// File:         Main program for LEDs
+//
+// **************************************************************************
+
 #include "mbed.h"
 
 // Serial line for printf output
@@ -12,8 +25,10 @@ DigitalIn g_but9(PTC9);
 DigitalIn g_but12(PTC12);
 
 Ticker casovac;
+Ticker casovacRGB;
 
 #define T 25
+
 
 class LED: public DigitalOut
 {
@@ -25,17 +40,15 @@ public:
 	}
 	void nastavJas(int procent)
 	{
-		T0 = T - ( procent * T ) / 100; // T0 je cast T v zavislosti na zadanych %
+		T0 = T - ( procent * T ) / 100;
 	}
 	void blik(int t)
 	{
 		if ( t < T0 ) write( 0 );
 		else write( 1 );
-		/// if ( t == 0 ) write( !read() ); // Opravit, aby "prebliknuti" bylo v zavislosti na T0
 	}
 	int T0;
 };
-
 class PWM
 {
 public:
@@ -50,7 +63,7 @@ public:
 		for (int i = 0; i < numled; i++)
 			leds[i].blik(t);
 		if ( ++t >= T )
-			t = 0; /// opravit!!
+			t = 0;
 	}
 	LED *leds;
 	int numled;
@@ -58,58 +71,73 @@ public:
 };
 
 LED g_redleds[ 8 ] = { PTC0, PTC1, PTC2, PTC3, PTC4, PTC5, PTC7, PTC8 };
+LED g_rgbleds[3] = {PTB9,PTB3,PTB2}; // {r,g,b}
 
 int main()
 {
-	// Serial line initialization
-	g_pc.baud(115200);
-	g_pc.printf("Demo program started...\r\n");
-
-	// ************************int i = 0;
 
 
 	PWM pwm(g_redleds, 8);
+	PWM pwm_rgb(g_rgbleds, 3);
+	casovac.attach_us(callback(&pwm, &PWM::blik), 1000);
+	casovacRGB.attach_us(callback(&pwm_rgb, &PWM::blik),1000);
+
+	g_rgbleds[0].nastavJas(100);
+	g_rgbleds[1].nastavJas(0);
+	g_rgbleds[2].nastavJas(0);
+
+	int x = 8;
+	int zivoty = 2;
+
 	while(1)
 	{
-		if(g_but9 == 0)
+		if(g_but12 == 0)
 		{
-
-			for( int i = 0; i < 8; i++ )
+			for ( int i = 8; i > 0; i-- )
 			{
-				g_redleds[ i ].nastavJas(0);
+				g_redleds[ i-1 ].nastavJas(100/i+10);
+				wait_ms(500);
+				if(i == 1 && g_but9 == 0)
+				{
+					g_redleds[7].nastavJas(100);
+					x--;
+				}
+				else if(i==1&& g_but9 == 1)
+				{
+					if(zivoty == 2)
+					{
+						g_rgbleds[0].nastavJas(0);
+						g_rgbleds[1].nastavJas(100);
+						zivoty--;
+					}
+					else if(zivoty == 1)
+					{
+						g_rgbleds[2].nastavJas(100);
+						g_rgbleds[1].nastavJas(0);
+						zivoty--;
+					}
+					else if(zivoty == 0)
+					{
+						g_rgbleds[2].nastavJas(0);
+						zivoty--;
+					}
+				}
 			}
-			for ( int i = 0; i < 8; i++ )
+			for(int j = x; j > 0; j--)
 			{
-				g_redleds[ i ].nastavJas(i*10+10);
-				wait_ms(250);
+				g_redleds[j-1].nastavJas(0);
+				wait_ms(500);
 			}
-			//g_redleds[7].nastavJas(0);///otocit posledni diodu
-			casovac.attach_us(callback(&pwm, &PWM::blik), 1000);
-			wait_ms(500);
-			if(g_but12 == 0 && g_redleds[7] == 1  )
-			{
-				g_led1 = !g_led1;
-			}
-			for(int i = 0; i < 8 ; i++)
-			{
-				g_redleds[i].nastavJas(0);
-			}
+			x=8;
 		}
-		g_led1 = 0;
+		wait_ms(1000);
+		for(int i = 0; i < 8 ; i++)
+		{
+			g_redleds[i].nastavJas(0);
+		}
+		if(zivoty == -1)
+		{
+			break;
+		}
 	}
-
-
-
-	// default demo for 2 LEDs and 4 buttons
-	while (1);
-	{
-		g_led1 = !g_led1;		// invert current state
-		g_led2 = !g_led1;		// inverse blinking
-
-		wait_ms(250);			// delay
-
-		//while (!g_but9 || !g_but10 || !g_but11 || !g_but12)
-			; // stop blinking
-	}
-
 }
